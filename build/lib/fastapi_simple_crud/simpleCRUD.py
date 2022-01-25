@@ -285,6 +285,8 @@ class RouterMap():
     """
     Router Mapping Class to define and simplify your router simple CRUD
     """
+    __updated_routers = {}
+
     @classmethod
     def _get_variable(cls):
         return [cls.__dict__[v] for v in vars(cls) if type(cls.__dict__[v]) == SimpleRouter]
@@ -300,7 +302,9 @@ class RouterMap():
             for v in c._get_key_value().values():
                 allRouters[v.tablename] = v
             if c.__subclasses__():
-                allRouters.update(c._collect_simple_router())                
+                allRouters.update(c._collect_simple_router())
+        if cls == RouterMap:
+            allRouters.update(RouterMap.__updated_routers)
         return allRouters
     
     @staticmethod
@@ -316,7 +320,23 @@ class RouterMap():
                 SimpleRouter(c, prefix=base_prefix+"/"+c.__tablename__, tags=[c.__tablename__])
                 )
         return AutoMap
-        
+    
+    @classmethod
+    def update_map(cls, simple_router: SimpleRouter):
+        """
+        Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
+        """
+        if cls == RouterMap:
+            RouterMap.__updated_routers[simple_router.tablename] = simple_router
+        else:
+            setattr(cls, simple_router.tablename, simple_router)
+
+    @classmethod
+    def generate(cls, application: Optional[FastAPI] = None, session_getter: Optional[FunctionType] = None):
+        if cls == RouterMap:
+            return SimpleCRUDGenerator(application, session_getter, True)
+        e = "RouterMap.generate() only able to be called from 'RouterMap' class"
+        raise BaseException(e)
 
 class SimpleCRUDGenerator():
     """
@@ -346,7 +366,7 @@ class SimpleCRUDGenerator():
         """
         self.session_getter = session_getter
 
-    def add_simple_router(self, simple_router: SimpleRouter):
+    def update_map(self, simple_router: SimpleRouter):
         """
         Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
         """
