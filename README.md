@@ -9,7 +9,7 @@ pip install fastapi-simple-crud
 ```
 
 ## Description
-A package to generate a CRUD routers and endpoints in a very simple way. Based on SQLAlchemy asynchronous operation and schema.
+A package to generate CRUD routers and endpoints in a very simple way. Based on SQLAlchemy asynchronous operation and schema.
 
 ## How to use ?
 ```
@@ -72,7 +72,7 @@ RouterMap.generate(app, get_session)
 
 
 
-## Example 2 : With RouterMap
+## Example 2 : With `RouterMap`
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
 
@@ -90,13 +90,13 @@ class MyMap(RouterMap):
 
 RouterMap.generate(app, get_session)
 ```
-- This example shows how to use RouterMap as a superclass
-- You could disable the endpoint generation by simply passing between these keyword arguments to 'None' in the SimpleRouter definition:
-  - crud_create
-  - crud_read
-  - crud_update
-  - crud_delete
-  - disable_simple_crud (will forcely disable all crud generation)
+- This example shows how to use `RouterMap` as a superclass
+- You could disable the endpoint generation by simply passing between these keyword arguments to `None` in the `SimpleRouter` definition:
+  - `crud_create`
+  - `crud_read`
+  - `crud_update`
+  - `crud_delete`
+  - `disable_simple_crud` (will forcely disable all crud generation)
 - Only your defined router mapping inside you router map (in above example is `MyMap` class) will be generated. From the example, `People` router is not exist.
 - `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the router decorator (ex: `@router.get()`, etc.)
 
@@ -179,4 +179,4 @@ async def get_country(id: int, session: AsyncSession = Depends(get_session)):
 RouterMap.generate(app, get_session)
 ```
 - Use your tablename to get the router attribute from the created router map (in above is `MyMap`)
-- RouterMap in default will automatically mapped your router with its tablename (in above Country tablename is `country`)
+- `RouterMap` in default will automatically mapped your router with its tablename (in above `Country` tablename is `country`)

@@ -47,14 +47,11 @@ class StatusCreator(StatusResponse):
     def _applyStatusAsAttribute(self):
         allAttr = [i for i in vars(StatusResponse) if not "_" in [i[0], i[-1]]]
         for a in allAttr:
-
             def fetcher(attrName):
                 def response(message=str(attrName).replace("_", " ")):
                     code = StatusResponse.__dict__[attrName]
                     return create_status(code, str(message))
-
                 return response
-
             self.__dict__[a] = fetcher(a)
 
 
@@ -120,15 +117,9 @@ class Selector:
         (this output column name will be user_id, profile_name)
         """
         if not SimpleCRUDBaseDeclaration.base:
-            msg = """
-            SQLAlchemy Declarative Base is not defined.
-
-            please define it by using 'set_declarative_base':
-
-                from fastapi_simple_crud.dependencies import set_declarative_base
-
-                set_declarative_base(Base)
-            """
+            msg = "SQLAlchemy Declarative Base is not defined. please define it by using 'set_declarative_base'\n"
+            msg += "    >>> from fastapi_simple_crud.dependencies import utils\n"
+            msg += "    >>> utils.set_declarative_base(Base)"
             raise BaseException(msg)
         self.baseClass = SimpleCRUDBaseDeclaration.base.__subclasses__()
         if columnsKeyPair:
