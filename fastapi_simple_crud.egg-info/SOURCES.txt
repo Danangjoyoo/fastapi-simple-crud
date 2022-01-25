@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 fastapi_simple_crud/__init__.py
@@ -12,3 +13,22 @@ fastapi_simple_crud/dependencies/log.py
 fastapi_simple_crud/dependencies/status.py
 fastapi_simple_crud/dependencies/utility.py
 fastapi_simple_crud/dependencies/utils.py
+fastapi_simple_crud/dependencies/__pycache__/__init__.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/__init__.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/checkFirebaseToken.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/checkFirebaseToken.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/connectionRedis.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/connectionRedis.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/log.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/log.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/security.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/simpleCRUD.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/simpleCRUD.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/status.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/status.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/utility.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/utility.cpython-38.pyc
+fastapi_simple_crud/dependencies/__pycache__/utils.cpython-37.pyc
+fastapi_simple_crud/dependencies/__pycache__/utils.cpython-38.pyc
+images/endpoint_example1.png
+images/schema_example1.png

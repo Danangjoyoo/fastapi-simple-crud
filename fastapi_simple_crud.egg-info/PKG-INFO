@@ -1,12 +1,15 @@
 Metadata-Version: 2.1
 Name: fastapi-simple-crud
-Version: 0.0.1
+Version: 0.0.2
 Summary: Generate CRUD routers for you schema in a simple way
 Home-page: UNKNOWN
 Author: danangjoyoo (Agus Danangjoyo)
 Author-email: <agus.danangjoyo.blog@gmail.com>
 License: UNKNOWN
-Description: #FastAPI Simple CRUD Generator
+Description: # FastAPI Simple CRUD Generator
+        
+        ## Repository
+        - [ ] [GITHUB](https://github.com/Danangjoyoo/fastapi-simple-crud)
         
         ## Installation
         ```

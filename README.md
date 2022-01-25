@@ -1,4 +1,7 @@
-#FastAPI Simple CRUD Generator
+# FastAPI Simple CRUD Generator
+
+## Repository
+- [ ] [GITHUB](https://github.com/Danangjoyoo/fastapi-simple-crud)
 
 ## Installation
 ```
