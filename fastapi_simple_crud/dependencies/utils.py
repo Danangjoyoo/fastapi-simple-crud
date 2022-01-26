@@ -2,9 +2,11 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import load_only, decl_api
-from sqlalchemy import asc, desc, func
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy import asc, desc, func, Column
 from sqlalchemy.sql.selectable import Select
-from typing import Optional, Union
+from typing import List, Optional, Union
+from pydantic import create_model
 
 from .status import StatusResponse
 from .utility import CommonQueryGetter
@@ -356,6 +358,19 @@ class BaseCRUD:
     def where(self, *whereExpression, **whereClause):
         return BaseWhereClause(self.classModel, *whereExpression, **whereClause)
 
+    async def read_one(self, id: int, getParams: CommonQueryGetter, session: AsyncSession):
+        try:
+            paginator = QueryPaginator(getParams, self.classModel)
+            query = paginator.rawQuery
+            query = query.where(self.classModel.id==id)
+            data = await session.execute(query)
+            data = data.scalars().first()
+            res = create_response(data=data, status=status.success())
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
+
     async def read(self, getParams: CommonQueryGetter, session: AsyncSession):
         try:
             paginator = QueryPaginator(getParams, self.classModel)
@@ -377,15 +392,48 @@ class BaseCRUD:
             logger.error(str(e))
             res = create_response(status=status.error(e))
         return res
+    
+    async def create_many(self, pydanticModelCollection, session: AsyncSession):
+        try:
+            dataCollection = pydanticModelCollection.dict()[self.classModel.__tablename__]
+            createdObj = []
+            statuses = []
+            successCreate = 0
+            failCreate = 0
+            for data in dataCollection:
+                try:
+                    obj = self.classModel(**data.dict())
+                    session.add(obj)
+                    createdObj.append(obj)                    
+                    successCreate += 1
+                    statuses.append({"id": data.id, "status":status.success()})
+                except Exception as e:
+                    failCreate += 1
+                    statuses.append({"id": data.id, "status":status.error(e)})
+            await session.commit()
+            for o in createdObj:
+                await session.refresh(o)
+            res = create_response(
+                data=statuses,
+                meta={
+                    "succeed": successCreate,
+                    "failed": failCreate
+                },
+                status=status.success()
+                )
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
 
     async def update(
-        self,
-        pydanticModel,
-        id: Optional[int],
-        session: AsyncSession,
-        whereClauseObject: Optional[BaseWhereClause] = None,
-        **whereClause
-    ):
+            self,
+            pydanticModel,
+            id: Optional[int],
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
         try:
             query = select(self.classModel)
             if id != None:
@@ -403,14 +451,59 @@ class BaseCRUD:
             logger.error(str(e))
             res = create_response(status=status.error(e))
         return res
+    
+    async def update_many(
+            self,
+            pydanticModelCollection,
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
+        try:
+            dataCollection = pydanticModelCollection.dict()[self.classModel.__tablename__]
+            statuses = []
+            successUpdate = 0
+            failUpdate = 0
+            for data in dataCollection:
+                try:
+                    query = select(self.classModel)
+                    if data.id != None:
+                        query = query.where(self.classModel.id == id)
+                    if whereClauseObject:
+                        query = whereClauseObject.applyWhereObject(query, whereClause)
+                    obj = await session.execute(query)
+                    obj = obj.scalars().first()
+                    if not obj:
+                        failUpdate += 1
+                        statuses.append({"id":data.id, "status": status.data_not_updated()})
+                    else:                        
+                        await update_data(session, self.classModel, obj, data)
+                        successUpdate += 1
+                        statuses.append({"id":data.id, "status": status.success()})
+                except Exception as e:
+                    logger.error(str(e))
+                    failUpdate += 1
+                    statuses.append({"id":data.id, "status": status.error(e)})
+            res = create_response(
+                data=statuses,
+                meta={
+                    "succeed": successUpdate,
+                    "failed": failUpdate
+                },
+                status=status.success()
+                )
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
 
     async def delete(
-        self,
-        id: Optional[int],
-        session: AsyncSession,
-        whereClauseObject: Optional[BaseWhereClause] = None,
-        **whereClause
-    ):
+            self,
+            id: Optional[int],
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
         try:
             query = select(self.classModel)
             if id != None:
@@ -430,3 +523,126 @@ class BaseCRUD:
             logger.error(str(e))
             res = create_response(status=status.error(e))
         return res
+    
+    async def delete_many(
+            self,
+            list_id: Optional[List[int]],
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
+        try:
+            statuses = []
+            successDelete = 0
+            failDelete = 0
+            for id in list_id:
+                try:
+                    query = select(self.classModel)
+                    if id != None:
+                        query = query.where(self.classModel.id == id)
+                    if whereClauseObject:
+                        query = whereClauseObject.applyWhereObject(query, whereClause)
+                    data = await session.execute(query)
+                    data = data.scalars().all()
+                    if not data:
+                        failDelete += 1
+                        statuses.append({"id":data.id, "status": status.data_is_not_exist()})
+                    else:
+                        for d in data:
+                            await session.delete(d)
+                        await session.commit()
+                        successDelete += 1
+                        statuses.append({"id":data.id, "status": status.success()})
+                except Exception as e:
+                    logger.error(e)
+                    failDelete += 1
+                    statuses.append({"id":data.id, "status": status.error(e)})
+            res = create_response(
+                data=statuses,
+                meta={
+                    "succeed": successDelete,
+                    "failed": failDelete
+                },
+                status=status.success()
+                )
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
+
+def generate_pydantic_model(
+        classModel: decl_api.DeclarativeMeta,
+        modelName: str = "",
+        exclude_attributes: Optional[List[Union[str, Column, InstrumentedAttribute]]] = []
+    ):
+    annots = get_annotation(classModel)
+    for ex_at in exclude_attributes:
+        if type(ex_at) != str:
+            ex_at = ex_at.__str__().split(".")[1]
+        if ex_at in annots:
+            annots.pop(ex_at)
+    if not modelName: modelName = classModel.tablename+"Pydantic"
+    ModelPydantic = create_model(modelName, **annots)
+    return ModelPydantic
+
+def get_annotation(classModel: decl_api.DeclarativeMeta):
+    try:
+        fields = [i for i in vars(classModel) if "_" not in [i[0], i[-1]]]
+        keyValuePair = {}
+        for f in fields:
+            if "comparator" in classModel.__dict__[f].__dict__:
+                if "column" in str(classModel.__dict__[f].__dict__["comparator"]).lower():
+                    comp = classModel.__dict__[f].__dict__["comparator"]
+                    if "VARCHAR" in str(comp.type):
+                        if "enum_class" in comp.type.__dict__:
+                            if comp.nullable:
+                                defaultValue = comp.default.arg if comp.default else None
+                                keyValuePair[f] = (Optional[comp.type.enum_class], defaultValue)
+                            else:
+                                defaultValue = comp.default.arg if comp.default else None
+                                keyValuePair[f] = (comp.type.enum_class, defaultValue)
+                        else:
+                            if comp.nullable:
+                                defaultValue = comp.default.arg if comp.default else None
+                                keyValuePair[f] = (Optional[str], defaultValue)
+                            else:
+                                defaultValue = comp.default.arg if comp.default else None
+                                keyValuePair[f] = (str, defaultValue)
+                    elif "TEXT" in str(comp.type):
+                        if comp.nullable:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (Optional[str], defaultValue)
+                        else:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (str, defaultValue)
+                    elif "BOOLEAN" in str(comp.type):
+                        if comp.nullable:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (Optional[bool], defaultValue)
+                        else:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (bool, defaultValue)
+                    elif "INTEGER" in str(comp.type):
+                        if comp.nullable:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (Optional[int], defaultValue)
+                        else:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (int, defaultValue)
+                    elif "FLOAT" in str(comp.type):
+                        if comp.nullable:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (Optional[float], defaultValue)
+                        else:
+                            defaultValue = comp.default.arg if comp.default else None
+                            keyValuePair[f] = (float, defaultValue)
+                    elif "DATETIME" in str(comp.type):
+                        if comp.nullable:
+                            defaultValue = None
+                            keyValuePair[f] = (Optional[datetime], defaultValue)
+                        else:
+                            defaultValue = None
+                            keyValuePair[f] = (datetime, defaultValue)
+        return keyValuePair
+    except:
+        return {}

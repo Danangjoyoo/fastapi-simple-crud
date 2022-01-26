@@ -1,4 +1,5 @@
 # FastAPI Simple CRUD Generator
+[![Downloads](https://static.pepy.tech/personalized-badge/fastapi-simple-crud?period=total&units=international_system&left_color=black&right_color=orange&left_text=Downloads)](https://pepy.tech/project/fastapi-simple-crud)
 
 ## Repository
 - [ ] [GITHUB](https://github.com/Danangjoyoo/fastapi-simple-crud)
