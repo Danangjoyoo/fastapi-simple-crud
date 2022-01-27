@@ -27,11 +27,11 @@ class RouterMap():
 
     @classmethod
     def _get_variable(cls):
-        return [cls.__dict__[v] for v in vars(cls) if type(cls.__dict__[v]) == SimpleRouter]
+        return [cls.__dict__[v] for v in vars(cls) if type(cls.__dict__[v]) in RouterClasses]
     
     @classmethod
     def _get_key_value(cls):
-        return {v: cls.__dict__[v] for v in vars(cls) if type(cls.__dict__[v]) == SimpleRouter}
+        return {v: cls.__dict__[v] for v in vars(cls) if type(cls.__dict__[v]) in RouterClasses}
 
     @classmethod
     def _collect_simple_router(cls):
@@ -46,21 +46,31 @@ class RouterMap():
         return allRouters
     
     @staticmethod
-    def create_router_map_from_base(base: decl_api.DeclarativeMeta, base_prefix: str = ""):
+    def create_router_map_from_base(
+            base: decl_api.DeclarativeMeta,
+            base_prefix: str = "",
+            extend: bool = False
+        ):
         """
         Create All CRUD Automatically from SQLAlchemy declared base
+        
+        :params:
+        - base -> SQLAlchemy declarative base
+        - base_prefix -> Base prefix path for all endpoints in one router
+        - extend -> Applying ExtendedRouter for more API
         """
         class AutoMap(RouterMap): pass
+        targetRouter = ExtendedRouter if extend else SimpleRouter 
         for c in base.__subclasses__():
             setattr(
                 AutoMap,
                 c.__tablename__,                
-                SimpleRouter(c, prefix=base_prefix+"/"+c.__tablename__, tags=[c.__tablename__])
+                targetRouter(c, prefix=base_prefix+"/"+c.__tablename__, tags=[c.__tablename__])
                 )
         return AutoMap
     
     @classmethod
-    def update_map(cls, simple_router: SimpleRouter):
+    def update_map(cls, simple_router: SimpleRouterType):
         """
         Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
         """
@@ -70,7 +80,18 @@ class RouterMap():
             setattr(cls, simple_router.tablename, simple_router)
 
     @classmethod
-    def generate(cls, application: Optional[FastAPI] = None, session_getter: Optional[FunctionType] = None):
+    def generate(
+            cls,
+            application: Optional[FastAPI] = None,
+            session_getter: Optional[FunctionType] = None
+        ):
+        """
+        Generate routers that have been defined using RouterMap
+        
+        :params
+        - application -> FastAPI Application
+        - session_getter -> SQLAlchemy AsyncSession Getter/yielder
+        """
         if cls == RouterMap:
             return SimpleCRUDGenerator(application, session_getter, True)
         e = "RouterMap.generate() only able to be called from 'RouterMap' class"
@@ -86,7 +107,12 @@ class SimpleCRUDGenerator():
     - session_getter -> method to get the sqlalchemy session
     - autogenerate (bool) -> once instantiated, the base crud endpoints will be created
     """
-    def __init__(self, application: Optional[FastAPI] = None, session_getter: Optional[FunctionType] = None, autogenerate: bool = True):
+    def __init__(
+            self,
+            application: Optional[FastAPI] = None,
+            session_getter: Optional[FunctionType] = None, 
+            autogenerate: bool = True
+        ):
         self.app = application
         self.allRouters = RouterMap._collect_simple_router()
         self.session_getter = session_getter
@@ -105,13 +131,17 @@ class SimpleCRUDGenerator():
         """
         self.session_getter = session_getter
 
-    def update_map(self, simple_router: SimpleRouter):
+    def update_map(self, simple_router: SimpleRouterType):
         """
         Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
         """
         self.allRouters[simple_router.tablename] = simple_router
 
-    def generate_router(self, application: Optional[FastAPI] = None, session_getter: Optional[FunctionType] = None):
+    def generate_router(
+            self,
+            application: Optional[FastAPI] = None,
+            session_getter: Optional[FunctionType] = None
+        ):
         """
         Generate defined router map
         """

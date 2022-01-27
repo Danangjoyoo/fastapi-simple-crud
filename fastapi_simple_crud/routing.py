@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, Request, Path
+from fastapi import FastAPI, APIRouter, Depends, Request, Path, Query
 from fastapi.encoders import SetIntStr, DictIntStrAny
 from fastapi.routing import APIRoute
 from fastapi.datastructures import Default
@@ -15,6 +15,7 @@ from datetime import datetime
 
 from .dependencies.utils import BaseCRUD, generate_pydantic_model
 from .dependencies.utility import CommonQueryGetter
+
 
 class SimpleEndpoint:
     def __init__(self, 
@@ -160,10 +161,10 @@ class SimpleRouter(APIRouter):
                 self.crud_delete = SimpleEndpoint(path="/{id}", enable=True)
             else:
                 self.crud_delete = SimpleEndpoint(enable=False)
-        self.__get_session = None
+        self._get_session = None
     
     def set_the_get_session(self, method: FunctionType):
-        self.__get_session = method
+        self._get_session = method
         
     def _setup_crud(self):
         if self.crud_create.enable:
@@ -180,7 +181,7 @@ class SimpleRouter(APIRouter):
             async def base_post(
                     request: Request,
                     modelPydantic: modelPydantic_,
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.create(modelPydantic, session)
         
@@ -194,7 +195,7 @@ class SimpleRouter(APIRouter):
             async def base_get(
                     request: Request,
                     getParams = Depends(CommonQueryGetter),
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.read(getParams, session)
 
@@ -213,7 +214,7 @@ class SimpleRouter(APIRouter):
                     request: Request,
                     modelPydantic: modelPydantic_,
                     id: int = Path(...,min=1),
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.update(modelPydantic, id, session)
 
@@ -227,12 +228,25 @@ class SimpleRouter(APIRouter):
             async def base_delete(
                     request: Request,
                     id: int = Path(...,min=1),
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.delete(id, session)
 
 
 class ExtendedRouter(SimpleRouter):
+    """
+    Extended Version of Simple Router.
+
+    Provide the following API:
+    - create one
+    - create many
+    - read one
+    - read many
+    - update one
+    - update many
+    - delete one
+    - delete many
+    """
     def __init__(
             self,
             classModel: decl_api.DeclarativeMeta,
@@ -256,6 +270,7 @@ class ExtendedRouter(SimpleRouter):
             create_many: Union[SimpleEndpoint, bool, None] = True,
             read_one: Union[SimpleEndpoint, bool, None] = True,
             read_many: Union[SimpleEndpoint, bool, None] = True,
+            # read_many_like: Union[SimpleEndpoint, bool, None] = True,
             update_one: Union[SimpleEndpoint, bool, None] = True,
             update_many: Union[SimpleEndpoint, bool, None] = True,
             delete_one: Union[SimpleEndpoint, bool, None] = True,
@@ -280,34 +295,7 @@ class ExtendedRouter(SimpleRouter):
                 deprecated=deprecated,
                 include_in_schema=include_in_schema,
                 disable_simple_crud=True)
-        
-        self.simplePydanticForCreateOne = generate_pydantic_model(
-            classModel=classModel,
-            modelName=self.tablename+"PydanticSimpleCreateOne"
-            )
-
-        self.simplePydanticForCreateMany = create_model(
-            self.tablename+"PydanticSimpleCreateMany",
-            **{self.tablename: List[self.simplePydanticForCreateOne]}
-        )
-
-        self.simplePydanticForUpdateOne = generate_pydantic_model(
-            classModel=classModel,
-            modelName=self.tablename+"PydanticSimpleUpdateOne",
-            exclude_attributes=["id"]
-            )
-
-        self.simplePydanticForUpdateMany = create_model(
-            self.tablename+"PydanticSimpleUpdateMany",
-            **{self.tablename: List[
-                generate_pydantic_model(
-                    classModel=classModel,
-                    modelName=self.tablename+"PydanticSimpleUpdateOneWithID"
-                    )
-                ]
-            }
-        )
-
+   
         if disable_extended_crud:
             create_one = None
             create_many = None
@@ -323,7 +311,7 @@ class ExtendedRouter(SimpleRouter):
             self.create_one = create_one
         else:
             if create_one:
-                self.create_one = SimpleEndpoint(path="/{id}",enable=True)
+                self.create_one = SimpleEndpoint(path="/one",enable=True)
             else:
                 self.create_one = SimpleEndpoint(enable=False)
 
@@ -341,7 +329,7 @@ class ExtendedRouter(SimpleRouter):
             self.read_one = read_one
         else:
             if read_one:
-                self.read_one = SimpleEndpoint(path="/{id}", enable=True)
+                self.read_one = SimpleEndpoint(path="/one", enable=True)
             else:
                 self.read_one = SimpleEndpoint(enable=False)
         
@@ -353,6 +341,15 @@ class ExtendedRouter(SimpleRouter):
                 self.read_many = SimpleEndpoint(path="", enable=True)
             else:
                 self.read_many = SimpleEndpoint(enable=False)
+        
+        # # read many like
+        # if type(read_paginate) == SimpleEndpoint:
+        #     self.read_paginate = read_paginate
+        # else:
+        #     if read_paginate:
+        #         self.read_paginate = SimpleEndpoint(path="/like", enable=True)
+        #     else:
+        #         self.read_paginate = SimpleEndpoint(enable=False)
         
         # update one
         if type(update_one) == SimpleEndpoint:
@@ -390,80 +387,200 @@ class ExtendedRouter(SimpleRouter):
             else:
                 self.delete_many = SimpleEndpoint(enable=False)
     
-    def _setup_crud_advance(self):
+    def _setup_crud(self):
         if self.create_one.enable:
             kargs = self.create_one.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
             if not kargs["name"]:
-                kargs["name"] = "create "+self.tablename
+                kargs["name"] = "create one "+self.tablename
             if self.create_one.modelPydantic:
                 modelPydantic_ = self.create_one.modelPydantic
             else:
-                modelPydantic_ = self.simplePydanticForCreateOne
+                modelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleCreateOne"
+                )
             @self.post(**kargs)
-            async def base_post(
+            async def base_post_one(
                     request: Request,
                     modelPydantic: modelPydantic_,
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.create(modelPydantic, session)
-            
+
         if self.create_many.enable:
             kargs = self.create_many.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
             if not kargs["name"]:
-                kargs["name"] = "create "+self.tablename
+                kargs["name"] = "create many "+self.tablename
             if self.create_many.modelPydantic:
                 modelPydantic_ = self.create_many.modelPydantic
             else:
-                modelPydantic_ = self.simplePydanticForCreateOne
+                modelPydantic_ = create_model(
+                    self.tablename+"PydanticSimpleCreateMany",
+                    **{self.tablename: (
+                        Optional[
+                            List[
+                                generate_pydantic_model(
+                                    classModel=self.classModel,
+                                    modelName=self.tablename+"PydanticSimpleCreateOneForMany"
+                                    )
+                                ]
+                            ],
+                        None
+                        )
+                    }
+                )
             @self.post(**kargs)
-            async def base_post(
+            async def base_post_many(
                     request: Request,
                     modelPydantic: modelPydantic_,
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
-                return await self.crud.create(modelPydantic, session)
-        
-        if self.crud_read.enable:
-            kargs = self.crud_read.get_endpoint_kwargs()
-            if not kargs["name"]:
-                kargs["name"] = "read "+self.tablename
-            @self.get(**kargs)
-            async def base_get(
-                    request: Request,
-                    getParams = Depends(CommonQueryGetter),
-                    session: AsyncSession = Depends(self.__get_session)
-                ):
-                return await self.crud.read(getParams, session)
+                return await self.crud.create_many(modelPydantic, session)
 
-        if self.crud_update.enable:
-            kargs = self.crud_update.get_endpoint_kwargs()
+        if self.read_one.enable:
+            kargs = self.read_one.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
             if not kargs["name"]:
-                kargs["name"] = "update "+self.tablename
-            if self.crud_update.modelPydantic:
-                modelPydantic_ = self.crud_update.modelPydantic
+                kargs["name"] = "read one "+self.tablename
+            @self.get(**kargs)
+            async def base_get_one(
+                    request: Request,
+                    id: int,
+                    session: AsyncSession = Depends(self._get_session)
+                ):
+                return await self.crud.read_one(id, session)
+        
+        if self.read_many.enable:
+            kargs = self.read_many.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
+            if not kargs["name"]:
+                kargs["name"] = "read many "+self.tablename
+            if self.create_many.modelPydantic:
+                modelPydantic_ = self.create_many.modelPydantic
             else:
-                modelPydantic_ = self.modelPydanticforUpdate
+                modelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleReadMany",
+                    uniform_attributes_paramsType=Query
+                )
+            @self.get(**kargs)
+            async def base_get_many(
+                    request: Request,
+                    readParams = Depends(modelPydantic_),
+                    getParams = Depends(CommonQueryGetter),
+                    session: AsyncSession = Depends(self._get_session)
+                ):
+                wc = self.crud.where(**readParams.dict())
+                return await self.crud.read_many(getParams, session, wc)
+
+        # if self.read_paginate.enable:
+        #     kargs = self.read_paginate.get_endpoint_kwargs(
+        #         exclude_attributes=["enable","modelPydantic"]
+        #         )
+        #     if not kargs["name"]:
+        #         kargs["name"] = "read paginate "+self.tablename
+        #     @self.get(**kargs)
+        #     async def base_get_paginate(
+        #             request: Request,
+        #             getParams = Depends(CommonQueryGetter),
+        #             session: AsyncSession = Depends(self._get_session)
+        #         ):
+        #         return await self.crud.read(getParams, session)
+
+        if self.update_one.enable:
+            kargs = self.update_one.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
+            if not kargs["name"]:
+                kargs["name"] = "update one "+self.tablename
+            if self.update_one.modelPydantic:
+                modelPydantic_ = self.update_one.modelPydantic
+            else:
+                modelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleUpdateOne",
+                    exclude_attributes=["id"]
+                )
             @self.put(**kargs)
-            async def base_put(
+            async def base_put_one(
                     request: Request,
                     modelPydantic: modelPydantic_,
                     id: int = Path(...,min=1),
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.update(modelPydantic, id, session)
-
-        if self.crud_delete.enable:
-            kargs = self.crud_delete.get_endpoint_kwargs()
+        
+        if self.update_many.enable:
+            kargs = self.update_many.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
             if not kargs["name"]:
-                kargs["name"] = "delete "+self.tablename
+                kargs["name"] = "update many "+self.tablename
+            if self.update_many.modelPydantic:
+                modelPydantic_ = self.update_many.modelPydantic
+            else:
+                modelPydantic_ = create_model(
+                    self.tablename+"PydanticSimpleUpdateMany",
+                    **{self.tablename: (Optional[List[
+                        generate_pydantic_model(
+                            classModel=self.classModel,
+                            modelName=self.tablename+"PydanticSimpleUpdateOneWithID"
+                        )]], None)}
+                )
+            @self.put(**kargs)
+            async def base_put_many(
+                    request: Request,
+                    pydanticModelCollection: modelPydantic_,
+                    reference_key: str = Query(
+                        ...,
+                        description="Put your reference key that will be use to refer your data. Your reference key won't be updated"
+                        ),
+                    session: AsyncSession = Depends(self._get_session)
+                ):
+                return await self.crud.update_many(reference_key, pydanticModelCollection, session)
+
+        if self.delete_one.enable:
+            kargs = self.delete_one.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
+            if not kargs["name"]:
+                kargs["name"] = "delete one "+self.tablename
             @self.delete(**kargs)
-            async def base_delete(
+            async def base_delete_one(
                     request: Request,
                     id: int = Path(...,min=1),
-                    session: AsyncSession = Depends(self.__get_session)
+                    session: AsyncSession = Depends(self._get_session)
                 ):
                 return await self.crud.delete(id, session)
+        
+        if self.delete_many.enable:
+            kargs = self.delete_many.get_endpoint_kwargs(
+                exclude_attributes=["enable","modelPydantic"]
+                )
+            if not kargs["name"]:
+                kargs["name"] = "delete many "+self.tablename
+            if self.delete_many.modelPydantic:
+                modelPydantic_ = self.delete_many.modelPydantic
+            else:
+                modelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleDeleteMany",
+                    uniform_attributes_paramsType=Query
+                )
+            @self.delete(**kargs)
+            async def base_delete_many(
+                    request: Request,
+                    deleteParams = Depends(modelPydantic_),
+                    session: AsyncSession = Depends(self._get_session)
+                ):
+                return await self.crud.delete_many(deleteParams, session)
+
+
+RouterClasses = [SimpleRouter, ExtendedRouter]
+SimpleRouterType = Union[SimpleRouter, ExtendedRouter]

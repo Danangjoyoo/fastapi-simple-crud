@@ -12,6 +12,13 @@ pip install fastapi-simple-crud
 ## Description
 A package to generate CRUD routers and endpoints in a very simple way. Based on SQLAlchemy asynchronous operation and schema.
 
+## Changelogs
+- v0.0
+    - First Upload
+- v0.1:
+    - Added `ExtendedRouter`
+    - Bugs fix
+
 ## How to use ?
 ```
 from fastapi import FastAPI
@@ -71,9 +78,20 @@ RouterMap.generate(app, get_session)
 - your pydantic schema
     - ![alt text](images/schema_example1.png)
 
+## Example 1b : Too few for you? Relax. We have the Extended Version
+simply set the `extend` parameter to `True` then you got the fully extended version
+```
+## ULTRA SIMPLE OH MY GOD!
+
+RouterMap.create_router_map_from_base(Base, base_prefix="/v1", extend=True)
+
+RouterMap.generate(app, get_session)
+```
+- your extended endpoints
+    - ![alt text](images/endpoint_example2.png)
 
 
-## Example 2 : With `RouterMap`
+## Example 2a : With `RouterMap`
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
 
@@ -92,14 +110,43 @@ class MyMap(RouterMap):
 RouterMap.generate(app, get_session)
 ```
 - This example shows how to use `RouterMap` as a superclass
-- You could disable the endpoint generation by simply passing between these keyword arguments to `None` in the `SimpleRouter` definition:
+- You could disable the API generation by simply passing between these keyword arguments to `None` in the `SimpleRouter` definition:
   - `crud_create`
   - `crud_read`
   - `crud_update`
   - `crud_delete`
-  - `disable_simple_crud` (will forcely disable all crud generation)
+  - `disable_simple_crud` (will forcely disable all API generation)
 - Only your defined router mapping inside you router map (in above example is `MyMap` class) will be generated. From the example, `People` router is not exist.
-- `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the router decorator (ex: `@router.get()`, etc.)
+- `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the API decorator (ex: `@router.get()`, etc.)
+
+## Example 2b : With `RouterMap` Extended Router
+```
+from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, ExtendedRouter, SimpleEndpoint
+
+## ULTRA SIMPLE OH MY GOD!
+
+class MyPresidentPydantic(BaseModel):
+    name: int
+
+class MyMap(RouterMap):
+    country = ExtendedRouter(Country, prefix="/v1/country")
+    president = ExtendedRouter(President, prefix="/v1/president",
+        read_one=None,
+        read_many=SimpleEndpoint("/custom_read")),
+        update_one=SimpleEndpoint(pydantic_model=MyPresidentPydantic)
+
+RouterMap.generate(app, get_session)
+```
+- You could disable the API generation by simply passing between these keyword arguments to `None` in the `ExtendedRouter` definition:
+  - `create_one`
+  - `create_many`
+  - `read_one`
+  - `read_many`
+  - `update_one`
+  - `update_many`
+  - `delete_one`
+  - `delete_many`
+  - `disable_extended_crud` (will forcely disable all API generation)
 
 ## Example 3 : Add Your Custom Endpoints
 ```
@@ -127,7 +174,7 @@ RouterMap.generate(app, get_session)
 ```
 - You could use your router from the your router map as shown above
 
-## Example 4 : Router Overriding
+## Example 4a : Router Modification - Disabling Some Routers
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
 
@@ -157,7 +204,17 @@ or from the `MyMap`
 MyMap.update_map(people)
 ```
 
-## Example 4 : Add your custom endpoints from `RouterMap.create_router_map_from_base()`
+## Example 4b : Router Modification - Change Router Type
+You can override `ExtendedRouter` with `SimpleRouter` and vice versa.
+```
+class NewMap(RouterMap):
+    people = SimpleRouter(People)
+
+class NewMap2(RouterMap):
+    people = Extended(People)
+```
+
+## Example 4c : Router Modification - Add your custom endpoints from `RouterMap.create_router_map_from_base()`
 ```
 from fastapi import Depends
 from sqlalchemy import select

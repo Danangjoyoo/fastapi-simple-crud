@@ -1,3 +1,4 @@
+import fastapi
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -5,7 +6,7 @@ from sqlalchemy.orm import load_only, decl_api
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy import asc, desc, func, Column
 from sqlalchemy.sql.selectable import Select
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from pydantic import create_model
 
 from .status import StatusResponse
@@ -334,6 +335,28 @@ class QueryPaginatorMultiple:
             status=status.success(),
         )
 
+## Future update
+# class BaseLikeClause:
+#     def __init__(self, classModel, *likeExpression, **likeClause):
+#         self.classModel = classModel
+#         self.likeExp = likeExpression
+#         self.lc = self.filterEmptyClause(likeClause)
+
+#     def applyLikeObject(self, query: Select, whereClauseDict, **WhereClauseKwargs):
+#         WhereClauseKwargs.update(whereClauseDict)
+#         self.wc.update(WhereClauseKwargs)
+#         for w in self.we:
+#             query = query.filter(w)
+#         for key in self.wc:
+#             query = query.where(self.classModel.__dict__[key] == self.wc[key])
+#         return query
+    
+#     def filterEmptyClause(self, likeClauseInDict: dict):
+#         newDict = {}
+#         for key, val in likeClauseInDict.items():
+#             if val != None:
+#                 newDict[key] = val
+#         return newDict
 
 class BaseWhereClause:
     def __init__(self, classModel, *whereExpression, **whereClause):
@@ -341,15 +364,22 @@ class BaseWhereClause:
         self.we = whereExpression
         self.wc = whereClause
 
-    def applyWhereObject(self, query: Select, whereClauseDict, **WhereClauseKwargs):
+    def applyWhereObject(self, query: Select, whereClauseDict: Optional[dict] = {}, **WhereClauseKwargs):
         WhereClauseKwargs.update(whereClauseDict)
         self.wc.update(WhereClauseKwargs)
+        self.wc = self.filterEmptyClause(self.wc)
         for w in self.we:
             query = query.where(w)
         for key in self.wc:
             query = query.where(self.classModel.__dict__[key] == self.wc[key])
         return query
-
+    
+    def filterEmptyClause(self, whereClauseInDict: dict):
+        newDict = {}
+        for key, val in whereClauseInDict.items():
+            if val != None:
+                newDict[key] = val
+        return newDict
 
 class BaseCRUD:
     def __init__(self, classModel):
@@ -358,11 +388,13 @@ class BaseCRUD:
     def where(self, *whereExpression, **whereClause):
         return BaseWhereClause(self.classModel, *whereExpression, **whereClause)
 
-    async def read_one(self, id: int, getParams: CommonQueryGetter, session: AsyncSession):
+    async def read_one(
+            self,
+            id: int,
+            session: AsyncSession
+        ):
         try:
-            paginator = QueryPaginator(getParams, self.classModel)
-            query = paginator.rawQuery
-            query = query.where(self.classModel.id==id)
+            query = select(self.classModel).where(self.classModel.id==id)
             data = await session.execute(query)
             data = data.scalars().first()
             res = create_response(data=data, status=status.success())
@@ -370,8 +402,29 @@ class BaseCRUD:
             logger.error(str(e))
             res = create_response(status=status.error(e))
         return res
+    
+    async def read_many(
+            self,
+            getParams: CommonQueryGetter,
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
+        try:
+            paginator = QueryPaginator(getParams, self.classModel)
+            query = paginator.rawQuery
+            if whereClauseObject:
+                query = whereClauseObject.applyWhereObject(query, whereClause)
+            res = await paginator.execute_pagination(session, query)
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
 
     async def read(self, getParams: CommonQueryGetter, session: AsyncSession):
+        """
+        with pagination
+        """
         try:
             paginator = QueryPaginator(getParams, self.classModel)
             query = paginator.rawQuery
@@ -402,24 +455,26 @@ class BaseCRUD:
             failCreate = 0
             for data in dataCollection:
                 try:
-                    obj = self.classModel(**data.dict())
+                    obj = self.classModel(**data)
                     session.add(obj)
                     createdObj.append(obj)                    
                     successCreate += 1
-                    statuses.append({"id": data.id, "status":status.success()})
+                    statuses.append(status.success())
+                    await session.flush()
                 except Exception as e:
                     failCreate += 1
-                    statuses.append({"id": data.id, "status":status.error(e)})
-            await session.commit()
-            for o in createdObj:
-                await session.refresh(o)
+                    statuses.append(status.error(e))
+            if not failCreate:
+                await session.commit()
+                for o in createdObj:
+                    await session.refresh(o)
             res = create_response(
-                data=statuses,
+                data={"status":statuses},
                 meta={
                     "succeed": successCreate,
                     "failed": failCreate
                 },
-                status=status.success()
+                status=status.error() if failCreate else status.success()
                 )
         except Exception as e:
             logger.error(str(e))
@@ -443,7 +498,7 @@ class BaseCRUD:
             data = await session.execute(query)
             data = data.scalars().first()
             if not data:
-                res = create_response(status=status.data_not_updated())
+                res = create_response(status=status.data_is_not_updated())
             else:
                 await update_data(session, self.classModel, data, pydanticModel)
                 res = create_response(status=status.success())
@@ -455,37 +510,35 @@ class BaseCRUD:
     async def update_many(
             self,
             pydanticModelCollection,
-            session: AsyncSession,
-            whereClauseObject: Optional[BaseWhereClause] = None,
-            **whereClause
+            reference_key,
+            session: AsyncSession
         ):
         try:
-            dataCollection = pydanticModelCollection.dict()[self.classModel.__tablename__]
+            dataCollection = pydanticModelCollection.__dict__[self.classModel.__tablename__]
             statuses = []
             successUpdate = 0
             failUpdate = 0
             for data in dataCollection:
-                try:
+                try:                    
                     query = select(self.classModel)
-                    if data.id != None:
-                        query = query.where(self.classModel.id == id)
-                    if whereClauseObject:
-                        query = whereClauseObject.applyWhereObject(query, whereClause)
+                    query = self.where().applyWhereObject(
+                        query, {reference_key: data.dict()[reference_key]}
+                        )
                     obj = await session.execute(query)
                     obj = obj.scalars().first()
                     if not obj:
                         failUpdate += 1
-                        statuses.append({"id":data.id, "status": status.data_not_updated()})
-                    else:                        
+                        statuses.append(status.data_is_not_updated())
+                    else:
                         await update_data(session, self.classModel, obj, data)
                         successUpdate += 1
-                        statuses.append({"id":data.id, "status": status.success()})
+                        statuses.append(status.success())
                 except Exception as e:
                     logger.error(str(e))
                     failUpdate += 1
-                    statuses.append({"id":data.id, "status": status.error(e)})
+                    statuses.append(status.error(e))
             res = create_response(
-                data=statuses,
+                data={"status": statuses},
                 meta={
                     "succeed": successUpdate,
                     "failed": failUpdate
@@ -526,39 +579,34 @@ class BaseCRUD:
     
     async def delete_many(
             self,
-            list_id: Optional[List[int]],
-            session: AsyncSession,
-            whereClauseObject: Optional[BaseWhereClause] = None,
-            **whereClause
+            deleteParamsPydantic,
+            session: AsyncSession
         ):
         try:
             statuses = []
             successDelete = 0
             failDelete = 0
-            for id in list_id:
+            query = select(self.classModel)
+            query = self.where().applyWhereObject(query, deleteParamsPydantic.dict())
+            print(11111, query)
+            datas = await session.execute(query)
+            datas = datas.scalars().all()
+            for data in datas:
                 try:
-                    query = select(self.classModel)
-                    if id != None:
-                        query = query.where(self.classModel.id == id)
-                    if whereClauseObject:
-                        query = whereClauseObject.applyWhereObject(query, whereClause)
-                    data = await session.execute(query)
-                    data = data.scalars().all()
                     if not data:
                         failDelete += 1
-                        statuses.append({"id":data.id, "status": status.data_is_not_exist()})
+                        statuses.append(status.data_is_not_exist())
                     else:
-                        for d in data:
-                            await session.delete(d)
-                        await session.commit()
+                        await session.delete(data)
                         successDelete += 1
-                        statuses.append({"id":data.id, "status": status.success()})
+                        statuses.append(status.success())
                 except Exception as e:
                     logger.error(e)
                     failDelete += 1
-                    statuses.append({"id":data.id, "status": status.error(e)})
+                    statuses.append(status.error(e))
+            await session.commit()
             res = create_response(
-                data=statuses,
+                data={"status": statuses},
                 meta={
                     "succeed": successDelete,
                     "failed": failDelete
@@ -573,7 +621,15 @@ class BaseCRUD:
 def generate_pydantic_model(
         classModel: decl_api.DeclarativeMeta,
         modelName: str = "",
-        exclude_attributes: Optional[List[Union[str, Column, InstrumentedAttribute]]] = []
+        exclude_attributes: Optional[List[Union[str, Column, InstrumentedAttribute]]] = [],
+        include_attributes_default: Optional[dict] = {},
+        include_attributes_paramsType: Optional[
+            Dict[str, Union[
+                fastapi.Path, fastapi.Body, fastapi.Form, fastapi.Query, fastapi.Cookie, fastapi.Header
+                ]]] = {},
+        uniform_attributes_paramsType: Optional[Union[
+            fastapi.Path, fastapi.Body, fastapi.Form, fastapi.Query, fastapi.Cookie, fastapi.Header
+            ]] = None
     ):
     annots = get_annotation(classModel)
     for ex_at in exclude_attributes:
@@ -581,6 +637,44 @@ def generate_pydantic_model(
             ex_at = ex_at.__str__().split(".")[1]
         if ex_at in annots:
             annots.pop(ex_at)
+    for key, at_def in include_attributes_default.items():
+        if key in annots:
+            dataType, defVal = annots[key]
+            annots[key] = (dataType, at_def)
+    if uniform_attributes_paramsType:
+        for key, an in annots.items():
+            dataType, defVal = an
+            try:
+                if (
+                        [
+                            len(dataType.__args__) > 1,
+                            type(None) in dataType.__args__,
+                        ]
+                    ):
+                    annots[key] = (dataType, uniform_attributes_paramsType(default=defVal))
+                else:
+                    annots[key] = (dataType, uniform_attributes_paramsType(..., default=defVal))
+            except:
+                annots[key] = (dataType, uniform_attributes_paramsType(default=defVal))
+    else:
+        for key, at_ptype in include_attributes_paramsType.items():
+            if key in annots:
+                try:
+                    dataType, defVal = annots[key]
+                    if (
+                            [
+                                len(dataType.__args__) > 1,
+                                type(None) in dataType.__args__,
+                            ]
+                        ):
+                        if defVal:
+                            annots[key] = (dataType, at_ptype(default=defVal))
+                        else:
+                            annots[key] = (dataType, at_ptype(...))
+                    else:
+                        annots[key] = (dataType, at_ptype(..., default=defVal))
+                except:
+                    annots[key] = (dataType, at_ptype(default=defVal))
     if not modelName: modelName = classModel.tablename+"Pydantic"
     ModelPydantic = create_model(modelName, **annots)
     return ModelPydantic
