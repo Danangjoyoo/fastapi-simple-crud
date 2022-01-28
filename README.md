@@ -10,7 +10,7 @@ pip install fastapi-simple-crud
 ```
 
 ## Description
-A package to generate CRUD routers and endpoints in a very simple way. Based on SQLAlchemy asynchronous operation and schema.
+A package to generate CRUD routers and API in a very simple way. Based on SQLAlchemy asynchronous operation and schema.
 
 ## Changelogs
 - v0.0
@@ -91,7 +91,17 @@ RouterMap.generate(app, get_session)
     - ![alt text](images/endpoint_example2.png)
 
 
-## Example 2a : With `RouterMap`
+## Using `RouterMap` superclass
+### Simple usage
+```
+class MyMap(RouterMap):
+    country = SimpleRouter(Country)
+    president = SimpleRouter(President)
+    people = ExtendedRouter(People)
+
+```
+
+### Additional usage
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
 
@@ -119,7 +129,7 @@ RouterMap.generate(app, get_session)
 - Only your defined router mapping inside you router map (in above example is `MyMap` class) will be generated. From the example, `People` router is not exist.
 - `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the API decorator (ex: `@router.get()`, etc.)
 
-## Example 2b : With `RouterMap` Extended Router
+## `RouterMap` with `ExtendedRouter()`
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, ExtendedRouter, SimpleEndpoint
 
@@ -148,7 +158,7 @@ RouterMap.generate(app, get_session)
   - `delete_many`
   - `disable_extended_crud` (will forcely disable all API generation)
 
-## Example 3 : Add Your Custom Endpoints
+## Add Your Custom API
 ```
 from fastapi import Depends
 from sqlalchemy import select
@@ -174,7 +184,7 @@ RouterMap.generate(app, get_session)
 ```
 - You could use your router from the your router map as shown above
 
-## Example 4a : Router Modification - Disabling Some Routers
+## Disabling Some Routers
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
 
@@ -204,21 +214,26 @@ or from the `MyMap`
 MyMap.update_map(people)
 ```
 
-## Example 4b : Router Modification - Change Router Type
+## Change Router Type
 You can override `ExtendedRouter` with `SimpleRouter` and vice versa.
 ```
 class NewMap(RouterMap):
     people = SimpleRouter(People)
 
 class NewMap2(RouterMap):
-    people = Extended(People)
+    people = ExtendedRouter(People)
 ```
 
-## Example 4c : Router Modification - Add your custom endpoints from `RouterMap.create_router_map_from_base()`
+## Add your custom API from `RouterMap.create_router_map_from_base()`
 ```
 from fastapi import Depends
 from sqlalchemy import select
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
+
+class Country(Base):
+    __tablename__ = "country"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
 
 ## ULTRA SIMPLE OH MY GOD!
 

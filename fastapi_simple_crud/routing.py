@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, Request, Path, Query
+from fastapi import FastAPI, APIRouter, Depends, Request, Path, Query, Body
 from fastapi.encoders import SetIntStr, DictIntStrAny
 from fastapi.routing import APIRoute
 from fastapi.datastructures import Default
@@ -186,37 +186,86 @@ class SimpleRouter(APIRouter):
                 return await self.crud.create(modelPydantic, session)
         
         if self.crud_read.enable:
+            # kargs = self.crud_read.get_endpoint_kwargs(
+            #     exclude_attributes=["enable","modelPydantic"]
+            #     )
+            # if not kargs["name"]:
+            #     kargs["name"] = "read "+self.tablename
+            # @self.get(**kargs)
+            # async def base_get(
+            #         request: Request,
+            #         getParams = Depends(CommonQueryGetter),
+            #         session: AsyncSession = Depends(self._get_session)
+            #     ):
+            #     return await self.crud.read(getParams, session)
             kargs = self.crud_read.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
             if not kargs["name"]:
-                kargs["name"] = "read "+self.tablename
+                kargs["name"] = "read many "+self.tablename
+            if self.crud_read.modelPydantic:
+                modelPydantic_ = self.crud_read.modelPydantic
+            else:
+                modelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleReadMany",
+                    uniform_attributes_paramsType=Query
+                )
             @self.get(**kargs)
-            async def base_get(
+            async def base_get_many(
                     request: Request,
+                    readParams = Depends(modelPydantic_),
                     getParams = Depends(CommonQueryGetter),
                     session: AsyncSession = Depends(self._get_session)
                 ):
-                return await self.crud.read(getParams, session)
+                wc = self.crud.where(**readParams.dict())
+                return await self.crud.read_many(getParams, session, wc)
 
         if self.crud_update.enable:
+            # kargs = self.crud_update.get_endpoint_kwargs(
+            #     exclude_attributes=["enable","modelPydantic"]
+            #     )
+            # if not kargs["name"]:
+            #     kargs["name"] = "update "+self.tablename
+            # if self.crud_update.modelPydantic:
+            #     modelPydantic_ = self.crud_update.modelPydantic
+            # else:
+            #     modelPydantic_ = self.modelPydanticforUpdate
+            # @self.put(**kargs)
+            # async def base_put(
+            #         request: Request,
+            #         modelPydantic: modelPydantic_,
+            #         id: int = Path(...,min=1),
+            #         session: AsyncSession = Depends(self._get_session)
+            #     ):
+            #     return await self.crud.update(modelPydantic, id, session)
             kargs = self.crud_update.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
             if not kargs["name"]:
-                kargs["name"] = "update "+self.tablename
+                kargs["name"] = "update one "+self.tablename
             if self.crud_update.modelPydantic:
                 modelPydantic_ = self.crud_update.modelPydantic
             else:
-                modelPydantic_ = self.modelPydanticforUpdate
+                premodelPydantic_ = generate_pydantic_model(
+                    classModel=self.classModel,
+                    modelName=self.tablename+"PydanticSimpleUpdateOne",
+                    exclude_attributes=["id"],
+                )
+                modelPydantic_ = create_model(
+                    self.tablename+"PydanticSimpleUpdateOnePacked",
+                    **{
+                        "id": (int, Path(...)),
+                        self.tablename: (premodelPydantic_, Body(...))
+                    }
+                )
             @self.put(**kargs)
             async def base_put(
                     request: Request,
-                    modelPydantic: modelPydantic_,
-                    id: int = Path(...,min=1),
+                    modelPydantic: modelPydantic_ = Depends(),
                     session: AsyncSession = Depends(self._get_session)
                 ):
-                return await self.crud.update(modelPydantic, id, session)
+                return await self.crud.update_one(modelPydantic, session)
 
         if self.crud_delete.enable:
             kargs = self.crud_delete.get_endpoint_kwargs(
@@ -447,13 +496,19 @@ class ExtendedRouter(SimpleRouter):
                 )
             if not kargs["name"]:
                 kargs["name"] = "read one "+self.tablename
+            if self.read_one.modelPydantic:
+                modelPydantic_ = self.read_one.modelPydantic
+            else:
+                modelPydantic_ = create_model(
+                    self.tablename+"PydanticSimpleReadOne", id=(int, Query(...))
+                    )
             @self.get(**kargs)
             async def base_get_one(
                     request: Request,
-                    id: int,
+                    modelPydantic_ = Depends(modelPydantic_),
                     session: AsyncSession = Depends(self._get_session)
                 ):
-                return await self.crud.read_one(id, session)
+                return await self.crud.read_one(modelPydantic_, session)
         
         if self.read_many.enable:
             kargs = self.read_many.get_endpoint_kwargs(
@@ -461,8 +516,8 @@ class ExtendedRouter(SimpleRouter):
                 )
             if not kargs["name"]:
                 kargs["name"] = "read many "+self.tablename
-            if self.create_many.modelPydantic:
-                modelPydantic_ = self.create_many.modelPydantic
+            if self.read_many.modelPydantic:
+                modelPydantic_ = self.read_many.modelPydantic
             else:
                 modelPydantic_ = generate_pydantic_model(
                     classModel=self.classModel,
@@ -502,19 +557,25 @@ class ExtendedRouter(SimpleRouter):
             if self.update_one.modelPydantic:
                 modelPydantic_ = self.update_one.modelPydantic
             else:
-                modelPydantic_ = generate_pydantic_model(
+                premodelPydantic_ = generate_pydantic_model(
                     classModel=self.classModel,
                     modelName=self.tablename+"PydanticSimpleUpdateOne",
-                    exclude_attributes=["id"]
+                    exclude_attributes=["id"],
+                )
+                modelPydantic_ = create_model(
+                    self.tablename+"PydanticSimpleUpdateOnePacked",
+                    **{
+                        "id": (int, Path(...)),
+                        self.tablename: (premodelPydantic_, Body(...))
+                    }
                 )
             @self.put(**kargs)
             async def base_put_one(
                     request: Request,
-                    modelPydantic: modelPydantic_,
-                    id: int = Path(...,min=1),
+                    modelPydantic: modelPydantic_ = Depends(),
                     session: AsyncSession = Depends(self._get_session)
                 ):
-                return await self.crud.update(modelPydantic, id, session)
+                return await self.crud.update_one(modelPydantic, session)
         
         if self.update_many.enable:
             kargs = self.update_many.get_endpoint_kwargs(
@@ -539,7 +600,7 @@ class ExtendedRouter(SimpleRouter):
                     pydanticModelCollection: modelPydantic_,
                     reference_key: str = Query(
                         ...,
-                        description="Put your reference key that will be use to refer your data. Your reference key won't be updated"
+                        description="Put your reference key that will be used to refer your data and won't be updated"
                         ),
                     session: AsyncSession = Depends(self._get_session)
                 ):

@@ -6,7 +6,7 @@ from sqlalchemy.orm import load_only, decl_api
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy import asc, desc, func, Column
 from sqlalchemy.sql.selectable import Select
-from typing import List, Optional, Union, Dict
+from typing import Any, List, Optional, Union, Dict
 from pydantic import create_model
 
 from .status import StatusResponse
@@ -390,11 +390,14 @@ class BaseCRUD:
 
     async def read_one(
             self,
-            id: int,
+            pydanticModel,
             session: AsyncSession
         ):
         try:
-            query = select(self.classModel).where(self.classModel.id==id)
+            query = select(self.classModel)
+            for k, attr in pydanticModel.dict().items():
+                if k in vars(self.classModel):
+                    query = query.where(vars(self.classModel)[k]==attr)
             data = await session.execute(query)
             data = data.scalars().first()
             res = create_response(data=data, status=status.success())
@@ -484,15 +487,15 @@ class BaseCRUD:
     async def update(
             self,
             pydanticModel,
-            id: Optional[int],
+            id,
             session: AsyncSession,
             whereClauseObject: Optional[BaseWhereClause] = None,
             **whereClause
         ):
         try:
             query = select(self.classModel)
-            if id != None:
-                query = query.where(self.classModel.id == id)
+            if id!=None:
+                query = query.where(self.classModel.id==id)
             if whereClauseObject:
                 query = whereClauseObject.applyWhereObject(query, whereClause)
             data = await session.execute(query)
@@ -506,7 +509,36 @@ class BaseCRUD:
             logger.error(str(e))
             res = create_response(status=status.error(e))
         return res
-    
+
+    async def update_one(
+            self,
+            pydanticModel,
+            session: AsyncSession,
+            whereClauseObject: Optional[BaseWhereClause] = None,
+            **whereClause
+        ):
+        try:
+            query = select(self.classModel)
+            for k, attr in pydanticModel.dict().items():
+                if k in vars(self.classModel):
+                    query = query.where(vars(self.classModel)[k]==attr)
+            if whereClauseObject:
+                query = whereClauseObject.applyWhereObject(query, whereClause)
+            data = await session.execute(query)
+            data = data.scalars().first()
+            if not data:
+                res = create_response(status=status.data_is_not_updated())
+            else:
+                await update_data(
+                    session, self.classModel, data,
+                    pydanticModel.__dict__[self.classModel.__tablename__]
+                    )
+                res = create_response(status=status.success())
+        except Exception as e:
+            logger.error(str(e))
+            res = create_response(status=status.error(e))
+        return res
+
     async def update_many(
             self,
             pydanticModelCollection,
@@ -622,11 +654,12 @@ def generate_pydantic_model(
         classModel: decl_api.DeclarativeMeta,
         modelName: str = "",
         exclude_attributes: Optional[List[Union[str, Column, InstrumentedAttribute]]] = [],
-        include_attributes_default: Optional[dict] = {},
+        include_attributes_default: Optional[Dict[str, Any]] = {},
         include_attributes_paramsType: Optional[
             Dict[str, Union[
                 fastapi.Path, fastapi.Body, fastapi.Form, fastapi.Query, fastapi.Cookie, fastapi.Header
                 ]]] = {},
+        uniform_attributes_default: Optional[Any] = None,
         uniform_attributes_paramsType: Optional[Union[
             fastapi.Path, fastapi.Body, fastapi.Form, fastapi.Query, fastapi.Cookie, fastapi.Header
             ]] = None
@@ -644,6 +677,8 @@ def generate_pydantic_model(
     if uniform_attributes_paramsType:
         for key, an in annots.items():
             dataType, defVal = an
+            if uniform_attributes_default:
+                defVal = uniform_attributes_default
             try:
                 if (
                         [
@@ -661,6 +696,8 @@ def generate_pydantic_model(
             if key in annots:
                 try:
                     dataType, defVal = annots[key]
+                    if uniform_attributes_default:
+                        defVal = uniform_attributes_default
                     if (
                             [
                                 len(dataType.__args__) > 1,
