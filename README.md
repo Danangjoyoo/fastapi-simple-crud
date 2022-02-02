@@ -18,6 +18,8 @@ A package to generate CRUD routers and API in a very simple way. Based on SQLAlc
 - v0.1:
     - Added `ExtendedRouter`
     - Bugs fix
+    - v0.1.4 :
+        - using `disable_crud` for both `SimpleRouter()` and `ExtendedRouter()` (previously `disable_simple_crud` and `disable_extended_crud` arguments)
 
 ## How to use ?
 ```
@@ -74,9 +76,9 @@ RouterMap.generate(app, get_session)
 
 ## Results
 - your endpoints
-    - ![alt text](images/endpoint_example1.png)
+    - ![alt text](https://raw.githubusercontent.com/Danangjoyoo/fastapi-simple-crud/main/images/endpoint_example1.png)
 - your pydantic schema
-    - ![alt text](images/schema_example1.png)
+    - ![alt text](https://raw.githubusercontent.com/Danangjoyoo/fastapi-simple-crud/main/images/schema_example1.png)
 
 ## Example 1b : Too few for you? Relax. We have the Extended Version
 simply set the `extend` parameter to `True` then you got the fully extended version
@@ -88,9 +90,9 @@ RouterMap.create_router_map_from_base(Base, base_prefix="/v1", extend=True)
 RouterMap.generate(app, get_session)
 ```
 - your extended endpoints
-    - ![alt text](images/endpoint_example2.png)
+    - ![alt text](https://raw.githubusercontent.com/Danangjoyoo/fastapi-simple-crud/main/images/endpoint_example2.png)
 
-
+---
 ## Using `RouterMap` superclass
 ### Simple usage
 ```
@@ -125,11 +127,11 @@ RouterMap.generate(app, get_session)
   - `crud_read`
   - `crud_update`
   - `crud_delete`
-  - `disable_simple_crud` (will forcely disable all API generation)
+  - `disable_crud` (will forcely disable all API generation)
 - Only your defined router mapping inside you router map (in above example is `MyMap` class) will be generated. From the example, `People` router is not exist.
 - `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the API decorator (ex: `@router.get()`, etc.)
 
-## `RouterMap` with `ExtendedRouter()`
+### `RouterMap` with `ExtendedRouter()`
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, ExtendedRouter, SimpleEndpoint
 
@@ -156,8 +158,9 @@ RouterMap.generate(app, get_session)
   - `update_many`
   - `delete_one`
   - `delete_many`
-  - `disable_extended_crud` (will forcely disable all API generation)
+  - `disable_crud` (will forcely disable all API generation)
 
+---
 ## Add Your Custom API
 ```
 from fastapi import Depends
@@ -183,7 +186,7 @@ async def get_country(id: int, session: AsyncSession = Depends(get_session)):
 RouterMap.generate(app, get_session)
 ```
 - You could use your router from the your router map as shown above
-
+---
 ## Disabling Some Routers
 ```
 from fastapi_simple_crud import SimpleCRUDGenerator, RouterMap, SimpleRouter, SimpleEndpoint
@@ -195,25 +198,25 @@ MyMap = RouterMap.create_router_map_from_base(base=Base)
 ## you want to remove people from autogeneration
 
 class NewMap(MyMap):
-    people = SimpleRouter(People, disable_simple_crud=True)
+    people = SimpleRouter(People, disable_crud=True)
 
 RouterMap.generate(app, get_session)
 ```
 or inherit from the `RouterMap`
 ```
 class NewMap(RouterMap):
-    people = SimpleRouter(People, disable_simple_crud=True)
+    people = SimpleRouter(People, disable_crud=True)
 ```
 or simply update from the `RouterMap`
 ```
-people = SimpleRouter(People, disable_simple_crud=True)
+people = SimpleRouter(People, disable_crud=True)
 RouterMap.update_map(people)
 ```
 or from the `MyMap`
 ```
 MyMap.update_map(people)
 ```
-
+---
 ## Change Router Type
 You can override `ExtendedRouter` with `SimpleRouter` and vice versa.
 ```
@@ -223,7 +226,7 @@ class NewMap(RouterMap):
 class NewMap2(RouterMap):
     people = ExtendedRouter(People)
 ```
-
+---
 ## Add your custom API from `RouterMap.create_router_map_from_base()`
 ```
 from fastapi import Depends

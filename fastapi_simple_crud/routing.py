@@ -103,7 +103,7 @@ class SimpleRouter(APIRouter):
             crud_read: Union[SimpleEndpoint, bool, None] = True,
             crud_update: Union[SimpleEndpoint, bool, None] = True,
             crud_delete: Union[SimpleEndpoint, bool, None] = True,
-            disable_simple_crud: bool = False
+            disable_crud: bool = False
         ):
         self.classModel = classModel
         self.tablename = classModel.__tablename__
@@ -128,7 +128,7 @@ class SimpleRouter(APIRouter):
                 on_shutdown=on_shutdown,
                 deprecated=deprecated,
                 include_in_schema=include_in_schema)
-        if disable_simple_crud:
+        if disable_crud:
             crud_create = None
             crud_read = None
             crud_update = None
@@ -324,7 +324,7 @@ class ExtendedRouter(SimpleRouter):
             update_many: Union[SimpleEndpoint, bool, None] = True,
             delete_one: Union[SimpleEndpoint, bool, None] = True,
             delete_many: Union[SimpleEndpoint, bool, None] = True,
-            disable_extended_crud: bool = False
+            disable_crud: bool = False
         ):
         super().__init__(
                 classModel=classModel,
@@ -343,9 +343,9 @@ class ExtendedRouter(SimpleRouter):
                 on_shutdown=on_shutdown,
                 deprecated=deprecated,
                 include_in_schema=include_in_schema,
-                disable_simple_crud=True)
+                disable_crud=True)
    
-        if disable_extended_crud:
+        if disable_crud:
             create_one = None
             create_many = None
             read_one = None
