@@ -177,6 +177,7 @@ class SimpleRouter(APIRouter):
                 modelPydantic_ = self.crud_create.modelPydantic
             else:
                 modelPydantic_ = self.modelPydanticforCreate
+                self.crud_create.modelPydantic = modelPydantic_
             @self.post(**kargs)
             async def base_post(
                     request: Request,
@@ -186,18 +187,6 @@ class SimpleRouter(APIRouter):
                 return await self.crud.create(modelPydantic, session)
         
         if self.crud_read.enable:
-            # kargs = self.crud_read.get_endpoint_kwargs(
-            #     exclude_attributes=["enable","modelPydantic"]
-            #     )
-            # if not kargs["name"]:
-            #     kargs["name"] = "read "+self.tablename
-            # @self.get(**kargs)
-            # async def base_get(
-            #         request: Request,
-            #         getParams = Depends(CommonQueryGetter),
-            #         session: AsyncSession = Depends(self._get_session)
-            #     ):
-            #     return await self.crud.read(getParams, session)
             kargs = self.crud_read.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
@@ -211,6 +200,7 @@ class SimpleRouter(APIRouter):
                     modelName=self.tablename+"PydanticSimpleReadMany",
                     uniform_attributes_paramsType=Query
                 )
+                self.crud_read.modelPydantic = modelPydantic_
             @self.get(**kargs)
             async def base_get_many(
                     request: Request,
@@ -222,23 +212,6 @@ class SimpleRouter(APIRouter):
                 return await self.crud.read_many(getParams, session, wc)
 
         if self.crud_update.enable:
-            # kargs = self.crud_update.get_endpoint_kwargs(
-            #     exclude_attributes=["enable","modelPydantic"]
-            #     )
-            # if not kargs["name"]:
-            #     kargs["name"] = "update "+self.tablename
-            # if self.crud_update.modelPydantic:
-            #     modelPydantic_ = self.crud_update.modelPydantic
-            # else:
-            #     modelPydantic_ = self.modelPydanticforUpdate
-            # @self.put(**kargs)
-            # async def base_put(
-            #         request: Request,
-            #         modelPydantic: modelPydantic_,
-            #         id: int = Path(...,min=1),
-            #         session: AsyncSession = Depends(self._get_session)
-            #     ):
-            #     return await self.crud.update(modelPydantic, id, session)
             kargs = self.crud_update.get_endpoint_kwargs(
                 exclude_attributes=["enable","modelPydantic"]
                 )
@@ -259,6 +232,7 @@ class SimpleRouter(APIRouter):
                         self.tablename: (premodelPydantic_, Body(...))
                     }
                 )
+                self.crud_update.modelPydantic = modelPydantic_
             @self.put(**kargs)
             async def base_put(
                     request: Request,
@@ -450,6 +424,7 @@ class ExtendedRouter(SimpleRouter):
                     classModel=self.classModel,
                     modelName=self.tablename+"PydanticSimpleCreateOne"
                 )
+                self.create_one.modelPydantic = modelPydantic_
             @self.post(**kargs)
             async def base_post_one(
                     request: Request,
@@ -482,6 +457,7 @@ class ExtendedRouter(SimpleRouter):
                         )
                     }
                 )
+                self.create_many.modelPydantic = modelPydantic_
             @self.post(**kargs)
             async def base_post_many(
                     request: Request,
@@ -502,6 +478,7 @@ class ExtendedRouter(SimpleRouter):
                 modelPydantic_ = create_model(
                     self.tablename+"PydanticSimpleReadOne", id=(int, Query(...))
                     )
+                self.read_one.modelPydantic = modelPydantic_
             @self.get(**kargs)
             async def base_get_one(
                     request: Request,
@@ -524,6 +501,7 @@ class ExtendedRouter(SimpleRouter):
                     modelName=self.tablename+"PydanticSimpleReadMany",
                     uniform_attributes_paramsType=Query
                 )
+                self.read_many.modelPydantic = modelPydantic_
             @self.get(**kargs)
             async def base_get_many(
                     request: Request,
@@ -569,6 +547,7 @@ class ExtendedRouter(SimpleRouter):
                         self.tablename: (premodelPydantic_, Body(...))
                     }
                 )
+                self.update_one.modelPydantic = modelPydantic_
             @self.put(**kargs)
             async def base_put_one(
                     request: Request,
@@ -594,6 +573,7 @@ class ExtendedRouter(SimpleRouter):
                             modelName=self.tablename+"PydanticSimpleUpdateOneWithID"
                         )]], None)}
                 )
+                self.update_many.modelPydantic = modelPydantic_
             @self.put(**kargs)
             async def base_put_many(
                     request: Request,
@@ -634,6 +614,7 @@ class ExtendedRouter(SimpleRouter):
                     modelName=self.tablename+"PydanticSimpleDeleteMany",
                     uniform_attributes_paramsType=Query
                 )
+                self.delete_many.modelPydantic = modelPydantic_
             @self.delete(**kargs)
             async def base_delete_many(
                     request: Request,

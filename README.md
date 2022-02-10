@@ -121,13 +121,13 @@ class MyMap(RouterMap):
 
 RouterMap.generate(app, get_session)
 ```
-- This example shows how to use `RouterMap` as a superclass
+- This example show how to use `RouterMap` as a superclass
 - You could disable the API generation by simply passing between these keyword arguments to `None` in the `SimpleRouter` definition:
   - `crud_create`
   - `crud_read`
   - `crud_update`
   - `crud_delete`
-  - `disable_crud` (will forcely disable all API generation)
+  - `disable_crud` (set this to `True` this will forcely disable all API generation)
 - Only your defined router mapping inside you router map (in above example is `MyMap` class) will be generated. From the example, `People` router is not exist.
 - `SimpleEndpoint()` refers to your HTTP method definition (GET/POST/PUT/DELETE) in the API decorator (ex: `@router.get()`, etc.)
 
@@ -158,7 +158,7 @@ RouterMap.generate(app, get_session)
   - `update_many`
   - `delete_one`
   - `delete_many`
-  - `disable_crud` (will forcely disable all API generation)
+  - `disable_crud` (set this to `True` this will forcely disable all API generation)
 
 ---
 ## Add Your Custom API
@@ -256,3 +256,55 @@ RouterMap.generate(app, get_session)
 ```
 - Use your tablename to get the router attribute from the created router map (in above is `MyMap`)
 - `RouterMap` in default will automatically mapped your router with its tablename (in above `Country` tablename is `country`)
+
+---
+## Want to use your generated pydantic?
+```
+class MyMap(RouterMap):
+    country = SimpleRouter(Country)
+    president = SimpleRouter(President)
+    people = ExtendedRouter(People)
+
+## here you go
+countryCreateOnePydanticModel = MyMap.country.create_one.pydanticModel
+```
+---
+## Want to generate your own pydantic from SQLAlchemy schema?
+for example we have this class
+```
+class People(Base):
+    __tablename__ = "people"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    age = Column(Integer)
+    country_id = Column(Integer, ForeignKey("country.id"))
+    country = relationship("Country")
+    isAlive = Column(Boolean)
+```
+then simply put in to with `generate_pydantic_model()`
+```
+from fastapi import Query
+from fastapi_simple_crud.dependencies.utils import generate_pydantic_model
+
+myPeoplePydantic = generate_pydantic_model(People, modelName="myPeoplePydantic")
+```
+or with some params..
+```
+myPeoplePydantic = generate_pydantic_model(
+            classModel=People,
+            modelName="myPeoplePydantic",
+            exclude_attributes=["id"],
+            include_attributes_default={"isAlive": True},
+            include_attributes_paramsType={"isAlive": Query},
+        )
+```
+the code above will generate `People` pydantic model without `id` attribute
+
+the available params are:
+- `classModel` >> your SQLAlchemy Model Schema Class
+- `modelName` >> your pydantic model name
+- `exclude_attributes` >> put the attributes you dont want inside your pydanticModel (it will copy all relatied attributes from the SQLAlchemy schema)
+- `include_attributes_default` >> set your attributes default params
+- `include_attributes_paramsType` >> set your attributes default params
+- `uniform_attributes_default` >> override all default value to uniform
+- `uniform_attributes_paramsType` >> override all params type to uniform

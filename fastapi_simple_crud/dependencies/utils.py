@@ -620,7 +620,6 @@ class BaseCRUD:
             failDelete = 0
             query = select(self.classModel)
             query = self.where().applyWhereObject(query, deleteParamsPydantic.dict())
-            print(11111, query)
             datas = await session.execute(query)
             datas = datas.scalars().all()
             for data in datas:
