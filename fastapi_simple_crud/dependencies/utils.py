@@ -663,6 +663,18 @@ def generate_pydantic_model(
             fastapi.Path, fastapi.Body, fastapi.Form, fastapi.Query, fastapi.Cookie, fastapi.Header
             ]] = None
     ):
+    """
+    Generate a pydantic model from SQLAlchemy schema class model
+
+    :params:
+    - classModel -> SQLAlchemy schema class model
+    - modelName -> Your pydantic schema class name
+    - exclude_attributes -> Put your undesired columns to be excluded
+    - include_attributes_default -> Set the columns default value
+    - include_attributes_paramsType -> Set the columns fastapi params type
+    - uniform_attributes_default -> Set the default attributes to be applied to all columns
+    - uniform_attributes_paramsType -> Set the params type to be applied to all columns
+    """
     annots = get_annotation(classModel)
     for ex_at in exclude_attributes:
         if type(ex_at) != str:

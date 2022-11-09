@@ -20,6 +20,10 @@ A package to generate CRUD routers and API in a very simple way. Based on SQLAlc
     - Bugs fix
     - v0.1.4 :
         - using `disable_crud` for both `SimpleRouter()` and `ExtendedRouter()` (previously `disable_simple_crud` and `disable_extended_crud` arguments)
+    - v0.1.5 :
+        - Auto Generated PydanticModel from both `SimpleRouter()` and `ExtendedRouter()` be accessed from their object
+    - v0.1.6 :
+        - `RouterMap.update_map()` can be used to update `ExtendedRouter()`
 
 ## How to use ?
 ```

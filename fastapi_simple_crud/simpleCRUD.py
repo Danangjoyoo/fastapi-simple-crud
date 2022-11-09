@@ -70,14 +70,15 @@ class RouterMap():
         return AutoMap
     
     @classmethod
-    def update_map(cls, simple_router: SimpleRouterType):
+    def update_map(cls, router: SimpleRouterType):
         """
-        Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
+        Add your fastapi_simple_crud.SimpleRouter() or fastapi_simple_crud.ExtendedRouter() 
+        object to be generated outside of the router map
         """
         if cls == RouterMap:
-            RouterMap.__updated_routers[simple_router.tablename] = simple_router
+            RouterMap.__updated_routers[router.tablename] = router
         else:
-            setattr(cls, simple_router.tablename, simple_router)
+            setattr(cls, router.tablename, router)
 
     @classmethod
     def generate(
@@ -131,11 +132,12 @@ class SimpleCRUDGenerator():
         """
         self.session_getter = session_getter
 
-    def update_map(self, simple_router: SimpleRouterType):
+    def update_map(self, router: SimpleRouterType):
         """
-        Add your fastapi_simple_crud.SimpleRouter object to be generated outside of the router map
+        Add your fastapi_simple_crud.SimpleRouter() or fastapi_simple_crud.ExtendedRouter() 
+        object to be generated outside of the router map
         """
-        self.allRouters[simple_router.tablename] = simple_router
+        self.allRouters[router.tablename] = router
 
     def generate_router(
             self,
